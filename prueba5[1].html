@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Servicio Psicólogos de Emergencia</title>
+  <style>
+    :root{--bg:#f7f9fb;--card:#fff;--primary:#2b6cb0;--muted:#6b7280}
+    *{box-sizing:border-box}
+    body{font-family:Inter,Arial,sans-serif;margin:0;background:var(--bg);color:#111;}
+    .center{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;}
+    .card{background:var(--card);padding:30px 24px;border-radius:12px;box-shadow:0 6px 20px rgba(11,22,39,0.08);}
+    button{margin:12px 0;padding:12px 24px;border-radius:8px;border:0;background:var(--primary);color:white;cursor:pointer;font-size:16px;}
+    .hidden{display:none;}
+    .grid{display:grid;grid-template-columns:1fr 380px;gap:18px;}
+    label{display:block;font-size:13px;color:var(--muted);margin-top:10px}
+    input, select{width:100%;padding:9px;border:1px solid #e6e9ee;border-radius:8px;margin-top:6px}
+    input:focus, select:focus, button:focus{outline:2px solid var(--primary)}
+    .small{font-size:12px;padding:6px 8px;border-radius:8px}
+    .btn-eliminar {background: #e53e3e; border: none; padding: 6px 10px; color: white; border-radius: 6px; cursor: pointer; font-size: 12px; margin-left: 10px;}
+    .btn-borrar-todo {background: #718096; border: none; padding: 6px 10px; color: white; border-radius: 6px; cursor: pointer; font-size: 12px; margin-left: 10px;}
+    .empty{color:var(--muted);padding:12px;text-align:center}
+    ul{list-style:none;padding:0;margin:0}
+    li{padding:10px;border-radius:8px;background:#f1f5f9;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+    @media(max-width:900px){.grid{grid-template-columns:1fr;}.card{max-width:100%}}
+  </style>
+</head>
+<body>
+  <!-- Página de acceso -->
+  <div id="acceso" class="center">
+    <div class="card">
+      <h2>¿Cómo quieres acceder?</h2>
+      <button id="btnPsicologo">Soy Psicólogo</button>
+      <button id="btnCoordinador">Soy Coordinador</button>
+    </div>
+  </div>
+
+  <!-- Vista Psicólogo -->
+  <div id="vistaPsicologo" class="hidden">
+    <header>
+      <h1>Registro de disponibilidad</h1>
+      <button id="btnSalirPsicologo" style="float:right;background:#718096;">Salir</button>
+    </header>
+    <div class="card" style="max-width:400px;margin:0 auto;">
+      <form id="formPsico" autocomplete="off">
+        <label for="nombre">Nombre completo</label>
+        <input id="nombre" name="nombre" type="text" required />
+
+        <label for="telefono">Teléfono</label>
+        <input id="telefono" name="telefono" type="tel" placeholder="Ej: +34 600 123 456" required />
+
+        <label for="zona">Zona</label>
+        <input id="zona" name="zona" type="text" required autocomplete="off" />
+        <div id="zona-sugerencias" style="background:#fff;border:1px solid #e6e9ee;max-height:120px;overflow:auto;position:absolute;z-index:10;border-radius:8px;display:none"></div>
+
+        <label for="semana">Semana</label>
+        <input id="semana" name="semana" type="week" required />
+
+        <label for="turno">Turno</label>
+        <select id="turno" name="turno" required>
+          <option value="">-- Selecciona un turno --</option>
+          <option>Mañana</option>
+          <option>Tarde</option>
+          <option>Noche</option>
+        </select>
+
+        <label for="notas">Notas (opcional)</label>
+        <input id="notas" name="notas" type="text" />
+
+        <button type="submit">Guardar</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Vista Coordinador -->
+  <div id="vistaCoordinador" class="hidden">
+    <header>
+      <h1>Coordinador — Vista</h1>
+      <button id="btnSalirCoordinador" style="float:right;background:#718096;">Salir</button>
+    </header>
+    <div class="card" style="max-width:600px;margin:0 auto;">
+      <label for="filtroDia">Filtrar por día</label>
+      <input id="filtroDia" type="date" />
+
+      <label for="filtroZona">Filtrar por zona</label>
+      <input id="filtroZona" type="text" autocomplete="off" />
+      <div id="filtroZona-sugerencias" style="background:#fff;border:1px solid #e6e9ee;max-height:120px;overflow:auto;position:absolute;z-index:10;border-radius:8px;display:none"></div>
+
+      <label for="filtroTurno">Filtrar por turno</label>
+      <select id="filtroTurno">
+        <option value="">-- Todos los turnos --</option>
+        <option>Mañana</option>
+        <option>Tarde</option>
+        <option>Noche</option>
+      </select>
+
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button id="btnVerTodos" class="small">Ver todos</button>
+        <button id="btnDescargarPDF" class="small" style="background:#38a169">Descargar PDF</button>
+        <button id="btnBorrarTodo" class="small btn-borrar-todo">Borrar todo</button>
+      </div>
+
+      <hr />
+      <div id="listadoContainer" style="max-height:460px;overflow:auto"></div>
+    </div>
+  </div>
+
+  <!-- jsPDF CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <script>
+    // Navegación entre vistas usando listeners (compatible con iPhone)
+    document.getElementById('btnPsicologo').addEventListener('click', function() {
+      document.getElementById('acceso').classList.add('hidden');
+      document.getElementById('vistaPsicologo').classList.remove('hidden');
+      document.getElementById('vistaCoordinador').classList.add('hidden');
+    });
+    document.getElementById('btnCoordinador').addEventListener('click', function() {
+      document.getElementById('acceso').classList.add('hidden');
+      document.getElementById('vistaPsicologo').classList.add('hidden');
+      document.getElementById('vistaCoordinador').classList.remove('hidden');
+    });
+    document.getElementById('btnSalirPsicologo').addEventListener('click', function() {
+      document.getElementById('acceso').classList.remove('hidden');
+      document.getElementById('vistaPsicologo').classList.add('hidden');
+      document.getElementById('vistaCoordinador').classList.add('hidden');
+    });
+    document.getElementById('btnSalirCoordinador').addEventListener('click', function() {
+      document.getElementById('acceso').classList.remove('hidden');
+      document.getElementById('vistaPsicologo').classList.add('hidden');
+      document.getElementById('vistaCoordinador').classList.add('hidden');
+    });
+
+    // --- Lógica de autocompletado y funcionalidad principal ---
+    const zonasDisponibles = [
+      "Ávila Zona Sur - Arenas de San Pedro",
+      "Ávila Zona Norte - Ávila/Arévalo",
+      "Burgos Zona Norte - Miranda de Ebro",
+      "Burgos Zona Centro - Burgos",
+      "Burgos Zona Sureste - Aranda de Duero",
+      "León Zona Suroeste - La Bañeza",
+      "León Zona Nordeste - León",
+      "León Zona Astorga",
+      "León Zona Noroeste - Bierzo",
+      "Palencia Zona Norte - Herrera de Pisuerga",
+      "Palencia Zona Sur - Palencia",
+      "Salamanca Zona Suroeste - Ciudad Rodrigo",
+      "Salamanca Zona Sureste - Béjar",
+      "Salamanca Zona Norte - Salamanca",
+      "Segovia Zona Sur - Segovia",
+      "Segovia Zona Norte - Cuéllar",
+      "Soria Zona Este - Soria",
+      "Soria Zona Oeste - Burgo de Osma",
+      "Valladolid Zona Norte - Valladolid/Rioseco",
+      "Valladolid Zona Sur - Medina/Olmedo",
+      "Valladolid Zona Este - Peñafiel",
+      "Zamora Zona Nordeste - Benavente",
+      "Zamora Zona Noroeste - Puebla de Sanabria",
+      "Zamora Zona Sur - Zamora"
+    ];
+
+    // Autocompletado para el formulario
+    const zonaInput = document.getElementById('zona');
+    const zonaSugerencias = document.getElementById('zona-sugerencias');
+    if(zonaInput){
+      zonaInput.addEventListener('input', function() {
+        const valor = zonaInput.value.toLowerCase();
+        zonaSugerencias.innerHTML = '';
+        if (!valor) {
+          zonaSugerencias.style.display = 'none';
+          return;
+        }
+        const sugerencias = zonasDisponibles.filter(z => z.toLowerCase().includes(valor));
+        if (sugerencias.length === 0) {
+          zonaSugerencias.style.display = 'none';
+          return;
+        }
+        sugerencias.forEach(zona => {
+          const div = document.createElement('div');
+          div.textContent = zona;
+          div.style.padding = '8px';
+          div.style.cursor = 'pointer';
+          div.addEventListener('mousedown', function(e) {
+            zonaInput.value = zona;
+            zonaSugerencias.style.display = 'none';
+          });
+          zonaSugerencias.appendChild(div);
+        });
+        zonaSugerencias.style.display = 'block';
+      });
+      zonaInput.addEventListener('blur', function() {
+        setTimeout(() => zonaSugerencias.style.display = 'none', 100);
+      });
+    }
+
+    // Autocompletado para el filtro del coordinador
+    const filtroZonaInput = document.getElementById('filtroZona');
+    const filtroZonaSugerencias = document.getElementById('filtroZona-sugerencias');
+    if(filtroZonaInput){
+      filtroZonaInput.addEventListener('input', function() {
+        const valor = filtroZonaInput.value.toLowerCase();
+        filtroZonaSugerencias.innerHTML = '';
+        if (!valor) {
+          filtroZonaSugerencias.style.display = 'none';
+          return;
+        }
+        const sugerencias = zonasDisponibles.filter(z => z.toLowerCase().includes(valor));
+        if (sugerencias.length === 0) {
+          filtroZonaSugerencias.style.display = 'none';
+          return;
+        }
+        sugerencias.forEach(zona => {
+          const div = document.createElement('div');
+          div.textContent = zona;
+          div.style.padding = '8px';
+          div.style.cursor = 'pointer';
+          div.addEventListener('mousedown', function(e) {
+            filtroZonaInput.value = zona;
+            filtroZonaSugerencias.style.display = 'none';
+            mostrarListado({ dia: filtroDia.value, zona: zona, turno: filtroTurno.value });
+          });
+          filtroZonaSugerencias.appendChild(div);
+        });
+        filtroZonaSugerencias.style.display = 'block';
+      });
+      filtroZonaInput.addEventListener('blur', function() {
+        setTimeout(() => filtroZonaSugerencias.style.display = 'none', 100);
+      });
+    }
+
+    // --- Funcionalidad principal ---
+    const { jsPDF } = window.jspdf;
+    const STORAGE_KEY = 'psicologos_por_semana_zona_turno_v2';
+    const form = document.getElementById('formPsico');
+    const listaCont = document.getElementById('listadoContainer');
+    const filtroDia = document.getElementById('filtroDia');
+    const filtroTurno = document.getElementById('filtroTurno');
+    const btnDescargarPDF = document.getElementById('btnDescargarPDF');
+    const btnBorrarTodo = document.getElementById('btnBorrarTodo');
+
+    function cargar() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch (e) {
+        alert('Error al cargar los datos.');
+        return [];
+      }
+    }
+    function guardar(datos) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(datos));
+      } catch (e) {
+        alert('Error al guardar los datos. Puede que el almacenamiento esté lleno.');
+      }
+    }
+    function rangoSemana(weekStr) {
+      const [year, week] = weekStr.split('-W').map(Number);
+      const primerDia = new Date(year, 0, 1);
+      const diaSemana = primerDia.getDay();
+      const primerLunes = new Date(primerDia);
+      let diff = 1 - diaSemana;
+      if (diff > 0) diff -= 7;
+      primerLunes.setDate(primerDia.getDate() + diff);
+      const inicioSemana = new Date(primerLunes);
+      inicioSemana.setDate(primerLunes.getDate() + (week - 1) * 7);
+      const finSemana = new Date(inicioSemana);
+      finSemana.setDate(inicioSemana.getDate() + 6);
+      return { inicioSemana, finSemana };
+    }
+    function mostrarListado({ dia = '', zona = '', turno = '' } = {}) {
+      if(!listaCont) return;
+      let datos = cargar();
+      if (dia) {
+        const filtroFecha = new Date(dia);
+        datos = datos.filter(r => {
+          const { inicioSemana, finSemana } = rangoSemana(r.semana);
+          return filtroFecha >= inicioSemana && filtroFecha <= finSemana;
+        });
+      }
+      if (zona) {
+        datos = datos.filter(r => r.zona === zona);
+      }
+      if (turno) {
+        datos = datos.filter(r => r.turno === turno);
+      }
+      listaCont.innerHTML = '';
+      if (!datos.length) {
+        listaCont.innerHTML = '<div class="empty">No hay registros.</div>';
+        return;
+      }
+      const grupos = {};
+      datos.forEach(r => {
+        grupos[r.semana] = grupos[r.semana] || [];
+        grupos[r.semana].push(r);
+      });
+      Object.keys(grupos).sort().forEach(sem => {
+        const { inicioSemana, finSemana } = rangoSemana(sem);
+        const header = document.createElement('div');
+        header.style.fontWeight = '700';
+        header.style.marginTop = '10px';
+        header.textContent = `Semana ${sem} (${inicioSemana.toLocaleDateString()} - ${finSemana.toLocaleDateString()})`;
+        listaCont.appendChild(header);
+        const ul = document.createElement('ul');
+        grupos[sem].forEach((r, index) => {
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <div>
+              <strong>${r.nombre}</strong> — ${r.zona} — <em>${r.telefono}</em>
+              <div class="meta">Turno: ${r.turno}${r.notas ? ' · ' + r.notas : ''}</div>
+            </div>
+          `;
+          const btnEliminar = document.createElement('button');
+          btnEliminar.textContent = 'Eliminar';
+          btnEliminar.className = 'btn-eliminar';
+          btnEliminar.onclick = () => {
+            eliminarRegistro(r);
+          };
+          li.appendChild(btnEliminar);
+          ul.appendChild(li);
+        });
+        listaCont.appendChild(ul);
+      });
+    }
+    function eliminarRegistro(registro) {
+      let datos = cargar();
+      datos = datos.filter(r => {
+        return !(r.nombre === registro.nombre && r.telefono === registro.telefono && r.semana === registro.semana && r.zona === registro.zona && r.turno === registro.turno && r.notas === registro.notas);
+      });
+      guardar(datos);
+      mostrarListado({ dia: filtroDia.value, zona: filtroZonaInput.value, turno: filtroTurno.value });
+    }
+    if(btnBorrarTodo){
+      btnBorrarTodo.addEventListener('click', () => {
+        guardar([]);
+        mostrarListado({});
+      });
+    }
+    if(form){
+      form.addEventListener('submit', e => {
+        e.preventDefault();
+        const registro = {
+          nombre: form.nombre.value.trim(),
+          telefono: form.telefono.value.trim(),
+          zona: form.zona.value,
+          semana: form.semana.value,
+          turno: form.turno.value,
+          notas: form.notas.value.trim()
+        };
+        if (!registro.nombre || !registro.telefono || !registro.zona || !registro.semana || !registro.turno) {
+          alert('Completa todos los campos obligatorios');
+          return;
+        }
+        const datos = cargar();
+        const existe = datos.some(r =>
+          r.nombre === registro.nombre &&
+          r.telefono === registro.telefono &&
+          r.zona === registro.zona &&
+          r.semana === registro.semana &&
+          r.turno === registro.turno
+        );
+        if (existe) {
+          alert('Ya existe un registro igual para esta semana, zona y turno.');
+          return;
+        }
+        datos.push(registro);
+        guardar(datos);
+        form.reset();
+        mostrarListado({ dia: filtroDia?.value, zona: filtroZonaInput?.value, turno: filtroTurno?.value });
+      });
+    }
+    if(filtroDia){
+      filtroDia.addEventListener('change', () => {
+        mostrarListado({ dia: filtroDia.value, zona: filtroZonaInput.value, turno: filtroTurno.value });
+      });
+    }
+    if(filtroZonaInput){
+      filtroZonaInput.addEventListener('change', () => {
+        mostrarListado({ dia: filtroDia.value, zona: filtroZonaInput.value, turno: filtroTurno.value });
+      });
+    }
+    if(filtroTurno){
+      filtroTurno.addEventListener('change', () => {
+        mostrarListado({ dia: filtroDia.value, zona: filtroZonaInput.value, turno: filtroTurno.value });
+      });
+    }
+    if(document.getElementById('btnVerTodos')){
+      document.getElementById('btnVerTodos').addEventListener('click', () => {
+        filtroDia.value = '';
+        filtroZonaInput.value = '';
+        filtroTurno.value = '';
+        mostrarListado({});
+      });
+    }
+    if(btnDescargarPDF){
+      btnDescargarPDF.addEventListener('click', () => {
+        const datos = cargar();
+        let datosFiltrados = datos;
+        if (filtroDia.value) {
+          const filtroFecha = new Date(filtroDia.value);
+          datosFiltrados = datosFiltrados.filter(r => {
+            const { inicioSemana, finSemana } = rangoSemana(r.semana);
+            return filtroFecha >= inicioSemana && filtroFecha <= finSemana;
+          });
+        }
+        if (filtroZonaInput.value) {
+          datosFiltrados = datosFiltrados.filter(r => r.zona === filtroZonaInput.value);
+        }
+        if (filtroTurno.value) {
+          datosFiltrados = datosFiltrados.filter(r => r.turno === filtroTurno.value);
+        }
+        if (!datosFiltrados.length) {
+          alert('No hay datos para descargar con los filtros actuales.');
+          return;
+        }
+        const doc = new jsPDF();
+        doc.setFontSize(14);
+        doc.text('Listado Psicólogos de Emergencia', 14, 20);
+        let y = 30;
+        const grupos = {};
+        datosFiltrados.forEach(r => {
+          grupos[r.semana] = grupos[r.semana] || [];
+          grupos[r.semana].push(r);
+        });
+        Object.keys(grupos).sort().forEach(sem => {
+          const { inicioSemana, finSemana } = rangoSemana(sem);
+          doc.setFontSize(12);
+          doc.text(`Semana ${sem} (${inicioSemana.toLocaleDateString()} - ${finSemana.toLocaleDateString()})`, 14, y);
+          y += 8;
+          doc.setFontSize(10);
+          grupos[sem].forEach(r => {
+            const texto = `${r.nombre} | ${r.zona} | ${r.telefono} | Turno: ${r.turno}${r.notas ? ' | ' + r.notas : ''}`;
+            const splitTexto = doc.splitTextToSize(texto, 180);
+            doc.text(splitTexto, 14, y);
+            y += splitTexto.length * 7;
+            if (y > 270) {
+              doc.addPage();
+              y = 20;
+            }
+          });
+          y += 6;
+        });
+        doc.save('listado_psicologos.pdf');
+      });
+    }
+    // Inicialización
+    mostrarListado({});
+  </script>
+</body>
+</html>
